@@ -1,8 +1,8 @@
 """
-Module to manage the calenders
+Module to manage the calendars
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 import os
 from typing_extensions import Final
 from googleapiclient.discovery import build
@@ -19,13 +19,15 @@ from lib.google.typing.events import EventInput, EventsResponse
 from lib.model.event import Event
 
 
-class GoogleCalender:
+class GoogleCalendar:
     """
-    Manage API calls to the Google Calender API
+    Manage API calls to the Google calendar API
     """
 
     # Configure the maximum pages that will be searched
-    MAX_PAGES: Final[int] = int(os.environ.get(Env.MAX_SEARCH_CALENDAR_PAGES.value) or 10)
+    MAX_PAGES: Final[int] = int(
+        os.environ.get(Env.MAX_SEARCH_CALENDAR_PAGES.value) or 10
+    )
     TIME_ZONE: Final = os.environ.get(Env.TIME_ZONE.value) or "Europe/Berlin"
 
     service: CalendarService
@@ -40,30 +42,30 @@ class GoogleCalender:
         """
         self.service = build("calendar", "v3", credentials=get_credentials())
 
-    def get_calenders(self) -> list[CalendarListEntry]:
+    def get_calendars(self) -> list[CalendarListEntry]:
         """
-        Return the list of available calenders
+        Return the list of available calendars
         """
         page_token = None
-        calenders: list[CalendarListEntry] = []
+        calendars: list[CalendarListEntry] = []
         for _ in range(self.MAX_PAGES):
-            calender_response: CalendarListResponse = (
+            calendar_response: CalendarListResponse = (
                 self.service.calendarList().list(pageToken=page_token).execute()
             )
-            if "items" in calender_response:
-                calenders = calenders + calender_response["items"]
+            if "items" in calendar_response:
+                calendars = calendars + calendar_response["items"]
 
-            page_token = calender_response.get("nextPageToken")
+            page_token = calendar_response.get("nextPageToken")
             if not page_token:
                 break
 
-        return calenders
+        return calendars
 
-    def get_calender_by_name(self, name: str) -> CalendarListEntry:
+    def get_calendar_by_name(self, name: str) -> CalendarListEntry:
         """
-        Return the given calender by name
+        Return the given calendar by name
         """
-        calendars = self.get_calenders()
+        calendars = self.get_calendars()
         for calendar in calendars:
             if calendar["summary"] == name.strip():
                 return calendar
@@ -75,16 +77,18 @@ class GoogleCalender:
         """
         Return the event input object expected by the google
         """
+        start_datetime = datetime.fromisoformat(event["start_datetime"])
+
         return {
-            "summary": event.name,
-            "description": event.description,
+            "summary": event["name"],
+            "description": event.get("description"),
             "start": {
-                "dateTime": event.start_datetime.isoformat("T"),
+                "dateTime": start_datetime.isoformat("T"),
                 "timeZone": cls.TIME_ZONE,
             },
             "end": {
                 "dateTime": (
-                    event.start_datetime + timedelta(minutes=event.duration_minutes)
+                    start_datetime + timedelta(minutes=event.get("duration_minutes", 60))
                 ).isoformat("T"),
                 "timeZone": cls.TIME_ZONE,
             },
@@ -98,7 +102,7 @@ class GoogleCalender:
 
     def create_event(self, calendar_id: str, event: Event) -> EventsResponse:
         """
-        Return the given calender by name
+        Return the given calendar by name
         """
         event_input = self._generate_event(event)
         return (

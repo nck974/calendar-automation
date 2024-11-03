@@ -1,13 +1,11 @@
-from dataclasses import dataclass
-from datetime import datetime
+from typing import TypedDict
 
 
-@dataclass
-class Event:
+class Event(TypedDict):
     """
     Model of the required data to create an event
     """
     name: str
     description: str
-    start_datetime: datetime
+    start_datetime: str
     duration_minutes: int

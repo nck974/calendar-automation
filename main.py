@@ -1,35 +1,53 @@
 """
 Entrypoint of the script
 """
-from datetime import datetime
+
 
 from dotenv import load_dotenv
 
-from lib.google.calendar import GoogleCalender
+from lib.exceptions.invalid_prompt import InvalidPromptOutputException
+from lib.google.calendar import GoogleCalendar
+from lib.google.gemini import Gemini
 from lib.model.event import Event
+from lib.prompt.event import build_find_events_prompt
 
-CALENDAR_NAME = "Hochschule Konzerte"
+CALENDAR_NAME = "CALENDAR NAME"
+EVENTS_INPUT = """
+ADD HERE User INPUT
+"""
+
+
+def get_calendar_events_with_ai() -> list[Event]:
+    """
+    Find the events from the given text
+    """
+    ai_generator = Gemini()
+    events = ai_generator.send_prompt(
+        build_find_events_prompt(EVENTS_INPUT),
+        response_schema=list[Event],
+    )
+
+    if not isinstance(events, list) or len(events) == 0:
+        raise InvalidPromptOutputException
+
+    return list(map(lambda x: Event(x), events))
+
 
 def main():
     """
     Run program
     """
     load_dotenv()
-    google_calender = GoogleCalender()
+    google_calendar = GoogleCalendar()
 
     # Find correct calendar
-    calendar = google_calender.get_calender_by_name(CALENDAR_NAME)
+    calendar = google_calendar.get_calendar_by_name(CALENDAR_NAME)
     calendar_id = calendar["id"]
 
-    # Create an event
-    event_input = Event(
-        name="Feierliche Übergabe der Rotary-Viola - (Kammermusiksaal) - Free",
-        description="Concert",
-        start_datetime=datetime(2024, 11, 5, 19, 30),
-        duration_minutes=60,
-    )
-    event = google_calender.create_event(calendar_id, event_input)
-    print(event)
+    # Create al events found in the provided text
+    for event in get_calendar_events_with_ai():
+        event = google_calendar.create_event(calendar_id, event)
+        print(f"Event created: {event['summary']}")
 
 
 if __name__ == "__main__":
